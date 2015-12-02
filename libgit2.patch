@@ -1,4 +1,4 @@
---- libgit2-0.20.0/Makefile.embed	2013-11-20 12:53:33.000000000 +0100
+--- libgit2-0.23.4/Makefile.embed	2013-11-20 12:53:33.000000000 +0100
 +++ b/Makefile.embed	2014-02-11 09:57:13.174615693 +0100
 @@ -31,7 +31,7 @@
  INCLUDES= -I. -Isrc -Iinclude -Ideps/http-parser -Ideps/zlib

@@ -1,7 +1,7 @@
 PROGS = git_filter
 CFLAGS = -O2 -Wall -Werror
 CFLAGS += -ggdb
-LIBGIT2_DIR = libgit2-0.20.0
+LIBGIT2_DIR = libgit2-0.23.4
 CFLAGS += -I$(LIBGIT2_DIR)/include
 LDLIBS = -L $(LIBGIT2_DIR) -lgit2
 UNAME = $(shell uname)
@@ -9,7 +9,7 @@ ifneq ($(UNAME), Darwin)
 LDLIBS += -lrt
 endif
 
-LIBGIT2_SRC = https://github.com/libgit2/libgit2/archive/v0.20.0.tar.gz
+LIBGIT2_SRC = https://github.com/libgit2/libgit2/archive/v0.23.4.tar.gz
 LIBGIT2_LOCAL = $(LIBGIT2_DIR).tar.gz
 LIBGIT2_PATCHES = libgit2.patch
 
@@ -27,7 +27,7 @@ $(LIBGIT2_DIR)/.patched: $(LIBGIT2_DIR)/.unpacked
 	touch $@
 
 $(LIBGIT2_DIR)/.built: $(LIBGIT2_DIR)/.patched
-	make -C libgit2-0.20.0 -f Makefile.embed
+	make -C libgit2-0.23.4 -f Makefile.embed
 	touch $@
 
 git_filter.o: $(LIBGIT2_DIR)/.built
