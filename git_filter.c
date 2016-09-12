@@ -28,6 +28,16 @@
 #define TF_LIST_CHUNKS 32
 #define CL_CHUNKS 16
 
+#define V(git2_call) do { \
+    int _error = git2_call; \
+    if (_error < 0) \
+    { \
+        const git_error *e = giterr_last(); \
+        log("error %d at %d calling %s\n", _error, __LINE__, #git2_call); \
+        log("%d: %s\n", e->klass, e->message); \
+    } \
+} while(0)
+
 #define C(git2_call) do { \
     int _error = git2_call; \
     if (_error < 0) \
@@ -49,7 +59,7 @@ typedef struct _include_dirs {
 } include_dirs_t;
 
 typedef struct _tree_filter {
-    const char *name;;
+    const char *name;
     const char *include_file;
     include_dirs_t id;
 
@@ -146,6 +156,16 @@ static char *savefile(const char *name, const char *suffix)
 {
     return local_sprintf("%s/%s%s%s%s",
             git_repo_name, git_repo_suffix, git_tag_prefix, name, suffix);
+}
+
+static int fileExists(const char *filename)
+{
+
+    FILE *f = fopen(filename, "r");
+    if (f)
+        fclose(f);
+
+    return f != 0;
 }
 
 char *local_fgets(FILE *f)
@@ -308,6 +328,53 @@ static void read_last_commit(git_oid *commit_id, const char *filename)
 }
 
 
+static void verify_revinfo(tree_filter_t *tf, git_repository *repo)
+{
+    char *full_path = savefile(tf->name, ".revinfo");
+    unsigned int lineno = 0;
+    FILE *f = fopen(full_path, "r");
+    if (!f)
+        die("Could not open %s", full_path);
+
+    for (;;)
+    {
+        char *e = local_fgets(f);
+        char *v;
+        char *k;
+        git_oid coid;
+        git_commit *commit;
+
+        if (e == 0)
+            break;
+
+        lineno ++;
+
+        k = e + 2;
+        v = strstr(e, " ");
+        if (!v)
+            die("could not parse line %d of %s", lineno, full_path);
+        v += 1;
+
+        git_oid oida;
+
+        if (git_oid_fromstr(&oida, k) != 0)
+            die("could not parse line %d of %s", lineno, full_path);
+
+        if (git_oid_fromstr(&coid, v) != 0)
+            die("could not parse line %d of %s", lineno, full_path);
+
+        if (git_oid_iszero(&coid))
+            commit = (git_commit *)-1;
+        else
+            V(git_commit_lookup(&commit, repo, &coid));
+
+        free(e);
+    }
+
+    fclose(f);
+    free(full_path);
+}
+
 static void read_revinfo(
         dict_t *revdict, dict_t *deleted_merges, dict_t *deleted_commits,
         git_repository *repo, const char *filename)
@@ -382,13 +449,21 @@ void tree_filter_init(tree_filter_t *tf, git_repository *repo)
 
     tf->deleted_commits = dict_init();
 
+    char *full_path = savefile(tf->name, ".revinfo");
     if (continue_run)
     {
-        char *full_path = savefile(tf->name, ".revinfo");
         read_revinfo(tf->revdict, tf->deleted_merges,
                        tf->deleted_commits, repo, full_path);
-        free(full_path);
     }
+    else
+    {
+        if (fileExists(full_path))
+        {
+            die("Dictionary %s exists, either delete it or use 'continue' option", full_path);
+        }
+
+    }
+    free(full_path);
 }
 
 void tree_filter_fini(tree_filter_t *tf)
@@ -1033,12 +1108,23 @@ int main(int argc, char *argv[])
             continue_run = 1;
             read_last_commit(&last_commit_id, last_commit_path);
         }
+        else if (!strcmp(argv[2], "verify"))
+        {
+            printf("Verifying revinfo dictionaries.\n");
+            for (i = 0; i < tf_len; i++)
+                verify_revinfo(&tf_list[i], repo);
+            exit(0);
+        }
         else
         {
             die("second argument '%s' given. Did you mean 'continue'?",
                     argv[2]);
         }
-
+    }
+    else
+    {
+        if (fileExists(last_commit_path))
+            die("Last commit id file %s exists, either delete it or use 'continue' option", last_commit_path);
     }
 
     for (i = 0; i < tf_len; i++)
